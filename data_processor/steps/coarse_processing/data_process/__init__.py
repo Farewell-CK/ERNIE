@@ -17,4 +17,4 @@
 from .process_identity import IdentityProcessor
 from .process_video import VideoCoarseProcessor
 
-__all__ = ['IdentityProcessor', 'VideoCoarseProcessor']
+__all__ = ["IdentityProcessor", "VideoCoarseProcessor"]

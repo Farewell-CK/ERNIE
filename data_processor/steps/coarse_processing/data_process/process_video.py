@@ -25,10 +25,17 @@ import uuid
 import numpy as np
 from PIL import Image
 
-from data_processor.utils.io_utils import EXTRACTED_FRAME_DIR, get_downloadable, get_filename
+from data_processor.utils.io_utils import (
+    EXTRACTED_FRAME_DIR,
+    get_downloadable,
+    get_filename,
+)
 from data_processor.utils.logger_utils import logger
 from data_processor.utils.processor_base import ProcessorBase
-from data_processor.utils.relief import omini_convert_schema_to_sequence, omini_convert_sequence_to_schema
+from data_processor.utils.relief import (
+    omini_convert_schema_to_sequence,
+    omini_convert_sequence_to_schema,
+)
 from data_processor.utils.video_utils import VideoReaderWrapper
 
 
@@ -75,7 +82,9 @@ class VideoCoarseProcessor(ProcessorBase):
                 raise ValueError("target_frames must be smaller than max_frames")
         else:
             if video_frame_args["fps"] < 0:
-                raise ValueError("Must provide either positive target_fps or positive target_frames.")
+                raise ValueError(
+                    "Must provide either positive target_fps or positive target_frames."
+                )
             frames_to_extract = int(video_meta["duration"] * video_frame_args["fps"])
 
             if (
@@ -84,14 +93,20 @@ class VideoCoarseProcessor(ProcessorBase):
                 and video_frame_args["min_frames"] > video_frame_args["max_frames"]
             ):
                 raise ValueError("min_frames must be smaller than max_frames")
-            if video_frame_args["min_frames"] > 0 and frames_to_extract < video_frame_args["min_frames"]:
+            if (
+                video_frame_args["min_frames"] > 0
+                and frames_to_extract < video_frame_args["min_frames"]
+            ):
                 logger.debug(
                     f"fps={video_frame_args['fps']} too low for min_frames={video_frame_args['min_frames']}, "
                     f"set target_frames={video_frame_args['min_frames']}"
                 )
                 video_frame_args["target_frames"] = video_frame_args["min_frames"]
                 video_frame_args["fps"] = -1
-            if video_frame_args["max_frames"] > 0 and frames_to_extract > video_frame_args["max_frames"]:
+            if (
+                video_frame_args["max_frames"] > 0
+                and frames_to_extract > video_frame_args["max_frames"]
+            ):
                 logger.debug(
                     f"fps={video_frame_args['fps']} too large for max_frames={video_frame_args['max_frames']},"
                     f" set target_frames={video_frame_args['max_frames']}"
@@ -109,10 +124,18 @@ class VideoCoarseProcessor(ProcessorBase):
         # sequnce is in format
         video_frame_args = dict()
         video_frame_args["fps"] = kwargs.get("video_fps", self.video_fps)
-        video_frame_args["min_frames"] = kwargs.get("video_min_frames", self.video_min_frames)
-        video_frame_args["max_frames"] = kwargs.get("video_max_frames", self.video_max_frames)
-        video_frame_args["target_frames"] = kwargs.get("video_target_frames", self.video_target_frames)
-        video_frame_args["frames_sample"] = kwargs.get("video_frames_sample", self.video_frames_sample)
+        video_frame_args["min_frames"] = kwargs.get(
+            "video_min_frames", self.video_min_frames
+        )
+        video_frame_args["max_frames"] = kwargs.get(
+            "video_max_frames", self.video_max_frames
+        )
+        video_frame_args["target_frames"] = kwargs.get(
+            "video_target_frames", self.video_target_frames
+        )
+        video_frame_args["frames_sample"] = kwargs.get(
+            "video_frames_sample", self.video_frames_sample
+        )
 
         new_sequence = []
 
@@ -127,7 +150,9 @@ class VideoCoarseProcessor(ProcessorBase):
             uid = str(uuid.uuid4())
             # first get video basic info, then set frame args
             video_path = video_one["image_url"]
-            video_reader, video_meta, video_path = read_video_decord(video_path, save_to_disk=save_to_disk)
+            video_reader, video_meta, video_path = read_video_decord(
+                video_path, save_to_disk=save_to_disk
+            )
             video_frame_args = self.set_video_frame_args(video_frame_args, video_meta)
 
             ret, frame_indices, time_stamps = read_frames_decord(
@@ -139,7 +164,11 @@ class VideoCoarseProcessor(ProcessorBase):
                 frames_sample=video_frame_args["frames_sample"],
                 fix_start=None,
                 save_to_disk=save_to_disk,
-                frame_indices=video_one["extracted_frame_indices"] if "extracted_frame_indices" in video_one else None,
+                frame_indices=(
+                    video_one["extracted_frame_indices"]
+                    if "extracted_frame_indices" in video_one
+                    else None
+                ),
             )
 
             assert len(time_stamps) == len(ret)
@@ -155,7 +184,9 @@ class VideoCoarseProcessor(ProcessorBase):
                     "time_stamp": time_stamp,
                     "video_uid": uid,
                 }
-                new_sequence.append(("image", image_ele))  # make video into image frame element
+                new_sequence.append(
+                    ("image", image_ele)
+                )  # make video into image frame element
 
                 # add asr right after the frame
 
@@ -163,7 +194,10 @@ class VideoCoarseProcessor(ProcessorBase):
                     # asr's format: [subtitle, start_second, end_second]
                     asr = video_one["asr"]
 
-                    while asr_cnt < len(video_one["asr"]) and asr[asr_cnt][-1] < time_stamp:
+                    while (
+                        asr_cnt < len(video_one["asr"])
+                        and asr[asr_cnt][-1] < time_stamp
+                    ):
                         time_start = round(asr[asr_cnt][1], 1)
                         time_end = round(asr[asr_cnt][2], 1)
                         asr_text = asr[asr_cnt][0].strip()
@@ -173,12 +207,17 @@ class VideoCoarseProcessor(ProcessorBase):
                             "tag": "mask",
                             "is_asr": True,
                         }
-                        new_sequence.append(("text", text_ele))  # convert it into asr text ele
+                        new_sequence.append(
+                            ("text", text_ele)
+                        )  # convert it into asr text ele
                         asr_cnt += 1
 
             # if there is some asr left, take it into account
-            if self.video_use_asr and "asr" in video_one and asr_cnt < len(video_one["asr"]):
-                text_to_add = []
+            if (
+                self.video_use_asr
+                and "asr" in video_one
+                and asr_cnt < len(video_one["asr"])
+            ):
                 asr = video_one["asr"]
                 while asr_cnt < len(video_one["asr"]):
                     time_start = round(asr[asr_cnt][1], 1)
@@ -190,7 +229,9 @@ class VideoCoarseProcessor(ProcessorBase):
                         "tag": "mask",
                         "is_asr": True,
                     }
-                    new_sequence.append(("text", text_ele))  # convert it into asr text ele
+                    new_sequence.append(
+                        ("text", text_ele)
+                    )  # convert it into asr text ele
                     asr_cnt += 1
 
         schema = omini_convert_sequence_to_schema(new_sequence)
@@ -199,10 +240,8 @@ class VideoCoarseProcessor(ProcessorBase):
 
 def read_video_decord(video_path, save_to_disk):
     """get reader and meta by decord"""
-    data_in_mem = False
     video_path = get_downloadable(video_path, save_to_disk=save_to_disk)
     if isinstance(video_path, VideoReaderWrapper):
-        data_in_mem = True
         video_reader = video_path
     else:
         if isinstance(video_path, bytes):
@@ -239,7 +278,9 @@ def get_frame_indices(
             )
         else:
             acc_samples = target_frames
-            logger.debug(f"sampling at target_frames={target_frames}, frames_sample={frames_sample}")
+            logger.debug(
+                f"sampling at target_frames={target_frames}, frames_sample={frames_sample}"
+            )
 
         # split the video into `acc_samples` intervals, and sample from each interval.
         intervals = np.linspace(start=0, stop=vlen, num=acc_samples + 1).astype(int)
@@ -249,7 +290,7 @@ def get_frame_indices(
         if frames_sample == "rand":
             try:
                 frame_indices = [random.choice(range(x[0], x[1])) for x in ranges]
-            except Exception as e:
+            except Exception:
                 frame_indices = np.random.permutation(vlen)[:acc_samples]
                 frame_indices.sort()
                 frame_indices = list(frame_indices)
@@ -263,11 +304,15 @@ def get_frame_indices(
             raise NotImplementedError
 
     elif target_fps > 0:
-        assert target_frames <= 0, "target_frames must be negative if target_fps is given."
+        assert (
+            target_frames <= 0
+        ), "target_frames must be negative if target_fps is given."
         assert input_fps > 0, "input_fps must be provided if target_fps is given."
         logger.info(f"sampling at fps={target_fps}, frames_sample={frames_sample}")
         duration = float(vlen) / input_fps
-        delta = 1 / target_fps  # gap between frames, this is also the clip length each frame represents
+        delta = (
+            1 / target_fps
+        )  # gap between frames, this is also the clip length each frame represents
         if frames_sample == "middle":
             frame_seconds = np.arange(0 + delta / 2, duration + delta / 2, delta)
         elif frames_sample == "leading":
@@ -280,7 +325,9 @@ def get_frame_indices(
         frame_indices = [e for e in frame_indices if e < vlen]
 
     else:
-        raise ValueError("Must provide either positive target_fps or positive target_frames.")
+        raise ValueError(
+            "Must provide either positive target_fps or positive target_frames."
+        )
 
     return frame_indices
 
@@ -331,9 +378,15 @@ def read_frames_decord(
                         previous_after_flag = not previous_after_flag
                         continue
                     try:
-                        frames.append(video_reader[frame_indice - previous_counter].asnumpy())
-                        logger.info(f"replace {frame_indice}-th frame with {frame_indice-previous_counter}-th frame")
-                        frame_indices[frame_indice_index] = frame_indice - previous_counter
+                        frames.append(
+                            video_reader[frame_indice - previous_counter].asnumpy()
+                        )
+                        logger.info(
+                            f"replace {frame_indice}-th frame with {frame_indice-previous_counter}-th frame"
+                        )
+                        frame_indices[frame_indice_index] = (
+                            frame_indice - previous_counter
+                        )
                         break
                     except Exception as e:
                         previous_counter += 1
@@ -343,16 +396,22 @@ def read_frames_decord(
                         previous_after_flag = not previous_after_flag
                         continue
                     try:
-                        frames.append(video_reader[frame_indice + later_counter].asnumpy())
-                        logger.info(f"replace {frame_indice}-th frame with {frame_indice+later_counter}-th frame")
+                        frames.append(
+                            video_reader[frame_indice + later_counter].asnumpy()
+                        )
+                        logger.info(
+                            f"replace {frame_indice}-th frame with {frame_indice+later_counter}-th frame"
+                        )
                         frame_indices[frame_indice_index] = frame_indice + later_counter
                         break
-                    except Exception as e:
+                    except Exception:
                         later_counter += 1
                 previous_after_flag = not previous_after_flag
 
     frames = np.stack(frames, axis=0)
-    assert len(frames) == len(frame_indices), f"len(frames): {len(frames)} != len(frame_indices): {len(frame_indices)}"
+    assert len(frames) == len(
+        frame_indices
+    ), f"len(frames): {len(frames)} != len(frame_indices): {len(frame_indices)}"
 
     ret = []
 
@@ -367,6 +426,9 @@ def read_frames_decord(
             tmp = save_path
         ret.append(tmp)
 
-    time_stamps = [frame_idx * video_meta["duration"] / video_meta["num_of_frame"] for frame_idx in frame_indices]
+    time_stamps = [
+        frame_idx * video_meta["duration"] / video_meta["num_of_frame"]
+        for frame_idx in frame_indices
+    ]
 
     return ret, frame_indices, time_stamps

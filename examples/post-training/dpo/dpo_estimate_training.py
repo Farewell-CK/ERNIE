@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Estimate DPO """
+"""Estimate DPO"""
 
 import json
 import os
@@ -22,6 +22,7 @@ import numpy as np
 import paddle
 from paddleformers.trainer import PdArgumentParser
 from paddleformers.utils.log import logger
+from paddleformers import __version__ as paddleformers_version
 
 # isort: off
 # fmt: off
@@ -30,6 +31,7 @@ from ernie.configuration import Ernie4_5_MoeConfig
 # isort: on
 
 from ernie.dataset.dpo import create_dataset
+from ernie.utils.download_utils import check_download_repo
 
 
 def calculate_acc_steps(num_samples, train_batch, dataset_world_size, per_device_train_batch_size):
@@ -194,12 +196,8 @@ def dpo_estimate_training(tokenizer, data_args, training_args, config, train_dat
 
 
 if __name__ == "__main__":
-    from dpo_utils import (
-        DataArgument,
-        DPOConfig,
-        DPOTrainingArguments,
-        ModelArgument,
-    )
+    from dpo_utils import (DataArgument, DPOConfig, DPOTrainingArguments,
+                           ModelArgument)
     parser = PdArgumentParser((ModelArgument, DataArgument, DPOTrainingArguments, DPOConfig))
     if len(sys.argv) >= 2 and sys.argv[1].endswith(".json"):
         model_args, data_args, training_args, dpo_config = parser.parse_json_file_and_cmd_lines()
@@ -216,6 +214,31 @@ if __name__ == "__main__":
 
     if training_args.num_of_gpus < 0:
         raise ValueError(f"num_of_gpus must be positive, but got num_of_gpus={training_args.num_of_gpus}")
-    tokenizer = Ernie4_5_Tokenizer.from_pretrained(model_args.model_name_or_path)
-    config = Ernie4_5_MoeConfig.from_pretrained(model_args.model_name_or_path)
+
+    model_args.model_name_or_path = check_download_repo(model_args.model_name_or_path,
+                                                        download_hub=model_args.download_hub)
+
+    try:
+        from paddleformers.utils.download import DownloadSource # test if paddleformers is the newest
+    except Exception:
+        DownloadSource = None
+
+    download_source_kwargs = {}
+    if DownloadSource is None:
+        if model_args.download_hub=="huggingface":
+            download_source_kwargs['from_hf_hub'] = True
+        elif model_args.download_hub=="aistudio":
+            download_source_kwargs['from_aistudio'] = True
+        elif model_args.download_hub=="modelscope":
+            download_source_kwargs['from_modelscope'] = True
+    else:
+        download_source_kwargs["download_hub"] = model_args.download_hub
+
+    convert_from_kwargs = {"convert_from_hf" if paddleformers_version > "0.2" else "convert_from_torch": False}
+    tokenizer = Ernie4_5_Tokenizer.from_pretrained(model_args.model_name_or_path,
+                                                **convert_from_kwargs,
+                                                **download_source_kwargs)
+    config = Ernie4_5_MoeConfig.from_pretrained(model_args.model_name_or_path,
+                                                **convert_from_kwargs,
+                                                **download_source_kwargs)
     dpo_estimate_training(tokenizer, data_args, training_args, config)

@@ -29,10 +29,18 @@ class CoarseProcessorArguments:
     """
 
     video_fps: int = field(default=-1, metadata={"help": "fps for sampling frames"})
-    video_min_frames: int = field(default=-1, metadata={"help": "fps for sampling frames with min"})
-    video_max_frames: int = field(default=-1, metadata={"help": "fps for sampling frames with max"})
-    video_target_frames: int = field(default=-1, metadata={"help": "fps for sampling frames with target"})
-    video_frames_sample: str = field(default="middle", metadata={"help": " middle, rand, leading"})
+    video_min_frames: int = field(
+        default=-1, metadata={"help": "fps for sampling frames with min"}
+    )
+    video_max_frames: int = field(
+        default=-1, metadata={"help": "fps for sampling frames with max"}
+    )
+    video_target_frames: int = field(
+        default=-1, metadata={"help": "fps for sampling frames with target"}
+    )
+    video_frames_sample: str = field(
+        default="middle", metadata={"help": " middle, rand, leading"}
+    )
     video_use_asr: bool = field(default=False, metadata={"help": "whether to use asr"})
 
     def __post_init__(self):

@@ -20,17 +20,14 @@ import numpy as np
 from paddleformers.data.indexed_dataset import SFTMMapIndexedDatasetBuilder
 from paddleformers.trainer import PdArgumentParser, RuntimeTimer
 from paddleformers.utils.log import logger
-from sft_utils import (
-    BuildDataArgument,
-    BuildSFTTrainingArguments,
-    DataGenerator,
-)
+from paddleformers import __version__ as paddleformers_version
+from sft_utils import BuildDataArgument, BuildSFTTrainingArguments, DataGenerator
 from train import ModelArgument
 
-from ernie.configuration import Ernie4_5_Config
 from ernie.dataset.finetuning import Sequence, create_dataset
 from ernie.tokenizer import Ernie4_5_Tokenizer
 from ernie.utils.common_utils import estimate_training
+from ernie.utils.download_utils import check_download_repo
 
 
 def main():
@@ -39,7 +36,9 @@ def main():
     """
     runtime_timer = RuntimeTimer("Creating SFT MapDataset")
 
-    parser = PdArgumentParser((ModelArgument, BuildDataArgument, BuildSFTTrainingArguments))
+    parser = PdArgumentParser(
+        (ModelArgument, BuildDataArgument, BuildSFTTrainingArguments)
+    )
 
     if len(sys.argv) >= 2 and sys.argv[1].endswith(".json"):
         model_args, data_args, training_args = parser.parse_json_file_and_cmd_lines()
@@ -64,9 +63,39 @@ def main():
         * training_args.sharding_parallel_degree
     )
 
-    tokenizer = Ernie4_5_Tokenizer.from_pretrained(model_args.model_name_or_path)
-    config = Ernie4_5_Config.from_pretrained(model_args.model_name_or_path)
+    model_args.model_name_or_path = check_download_repo(
+        model_args.model_name_or_path,
+        download_hub=model_args.download_hub,
+    )
 
+    try:
+        from paddleformers.utils.download import (
+            DownloadSource,
+        )  # test if paddleformers is the newest
+    except Exception:
+        DownloadSource = None
+
+    download_source_kwargs = {}
+    if DownloadSource is None:
+        if model_args.download_hub == "huggingface":
+            download_source_kwargs["from_hf_hub"] = True
+        elif model_args.download_hub == "aistudio":
+            download_source_kwargs["from_aistudio"] = True
+        elif model_args.download_hub == "modelscope":
+            download_source_kwargs["from_modelscope"] = True
+    else:
+        download_source_kwargs["download_hub"] = model_args.download_hub
+
+    convert_from_kwargs = {
+        (
+            "convert_from_hf" if paddleformers_version > "0.2" else "convert_from_torch"
+        ): False
+    }
+    tokenizer = Ernie4_5_Tokenizer.from_pretrained(
+        model_args.model_name_or_path,
+        **convert_from_kwargs,
+        **download_source_kwargs,
+    )
     if tokenizer.vocab_size < 2**16 - 1:
         save_dtype = np.uint16
     else:
@@ -84,9 +113,11 @@ def main():
 
     if training_args.do_train and data_args.train_dataset_path:
         runtime_timer.start("Create SFT Train MapDataset")
-        os.makedirs(os.path.join(data_args.dataset_output_dir, 'train'), exist_ok=True)
+        os.makedirs(os.path.join(data_args.dataset_output_dir, "train"), exist_ok=True)
 
-        train_output_idx_files = os.path.join(data_args.dataset_output_dir, 'train', 'index.idx')
+        train_output_idx_files = os.path.join(
+            data_args.dataset_output_dir, "train", "index.idx"
+        )
         train_dataset = create_dataset(
             task_group=data_args.train_dataset_path,
             task_group_prob=data_args.train_dataset_prob,
@@ -96,16 +127,18 @@ def main():
         )
         if training_args.max_steps == -1:
             training_args.estimation_output_file = (
-                'estimate_training.json'
+                "estimate_training.json"
                 if training_args.estimation_output_file is None
                 else training_args.estimation_output_file
             )
-            training_args.max_steps = estimate_training(train_dataset, data_args, training_args, model_args)
+            training_args.max_steps = estimate_training(
+                train_dataset, data_args, training_args, model_args
+            )
 
         train_samples = training_args.max_steps * global_batch_size
 
         output_file_dict = {}
-        train_dir = os.path.join(data_args.dataset_output_dir, 'train')
+        train_dir = os.path.join(data_args.dataset_output_dir, "train")
         for field in fields(dataclass):
             output_path = os.path.join(train_dir, f"{field.name}.bin")
             output_file_dict[field.name] = output_path
@@ -126,8 +159,10 @@ def main():
 
     if training_args.do_eval and data_args.eval_task_config:
         runtime_timer.start("Create SFT Eval MapDataset")
-        os.makedirs(os.path.join(data_args.dataset_output_dir, 'eval'), exist_ok=True)
-        eval_output_idx_files = os.path.join(data_args.dataset_output_dir, 'eval', 'index.idx')
+        os.makedirs(os.path.join(data_args.dataset_output_dir, "eval"), exist_ok=True)
+        eval_output_idx_files = os.path.join(
+            data_args.dataset_output_dir, "eval", "index.idx"
+        )
         eval_dataset = create_dataset(
             task_group=data_args.eval_dataset_path,
             task_group_prob=data_args.eval_dataset_prob,
@@ -136,7 +171,7 @@ def main():
             **dataset_config,
         )
         output_file_dict = {}
-        eval_dir = os.path.join(data_args.dataset_output_dir, 'eval')
+        eval_dir = os.path.join(data_args.dataset_output_dir, "eval")
         for field in fields(dataclass):
             output_path = os.path.join(eval_dir, f"{field.name}.bin")
             output_file_dict[field.name] = output_path
